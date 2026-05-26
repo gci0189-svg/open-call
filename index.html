@@ -938,12 +938,7 @@ function batchAddToQueue() {
     const already = _ticketQueue.some(function(q) { return q.serial === m.s && q.type === t.type; });
     if (already) return;
     const bankName = BANK_NAMES[m.b] || m.b;
-    const text = '麻煩協助建
-' + bankName + m.br + '
-' + m.s + '
-' + t.type + '
-' + work + '
-Steven Chou';
+    const text = '\u9ebb\u7169\u5354\u52a9\u5efa\n' + bankName + m.br + '\n' + m.s + '\n' + t.type + '\n' + work + '\nSteven Chou';
     _ticketQueue.push({ text: text, type: t.type, work: work, serial: m.s });
   });
   renderMainQueue();
