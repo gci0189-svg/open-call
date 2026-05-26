@@ -122,6 +122,25 @@ body{background:#fff;color:#1a2a28;font-family:-apple-system,'PingFang TC','Micr
 .copy-all-btn{width:100%;background:var(--teal);border:none;border-radius:10px;color:#fff;font-size:16px;font-weight:600;padding:15px;cursor:pointer;transition:opacity 0.15s}
 .copy-all-btn:hover{opacity:0.9}
 .copy-all-btn.copied{background:#0d9e84}
+/* Main queue bar */
+.qb-wrap{background:var(--teal-bg);border:1.5px solid var(--teal-border);border-radius:12px;padding:12px 14px;margin-bottom:14px}
+.qb-header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.qb-title{font-size:12px;font-weight:500;letter-spacing:.08em;color:#50a090;text-transform:uppercase;flex:1}
+.qb-badge{background:var(--teal);color:#fff;font-size:11px;font-weight:600;padding:2px 10px;border-radius:20px}
+.qb-clear{font-size:12px;color:#aac4c0;background:none;border:none;cursor:pointer;padding:0}
+.qb-clear:hover{color:#e04040}
+.qi{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border:1px solid var(--teal-border);border-radius:8px;margin-bottom:6px}
+.qi-type{font-weight:700;font-family:var(--mono);font-size:13px;color:var(--teal);flex-shrink:0;min-width:34px}
+.qi-serial{font-family:var(--mono);font-size:12px;color:#99bbb8;flex-shrink:0}
+.qi-work{font-size:13px;color:#0d1f1c;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-left:4px}
+.qi-del{background:none;border:none;color:#aac4c0;font-size:20px;cursor:pointer;flex-shrink:0;line-height:1;padding:0}
+.qi-del:hover{color:#e04040}
+.copy-all-main{width:100%;background:var(--teal);border:none;border-radius:9px;color:#fff;font-size:15px;font-weight:500;padding:13px;cursor:pointer;margin-top:4px;transition:opacity .15s}
+.copy-all-main:hover{opacity:.9}
+.copy-all-main.copied{background:#0d9e84}
+/* Added badge on cards */
+.added-badge{margin-left:auto;background:var(--teal-bg);border:1.5px solid var(--teal-border);border-radius:20px;font-size:11px;font-weight:500;color:var(--teal);padding:3px 10px;white-space:nowrap;flex-shrink:0}
+
 
 /* Notice blocks */
 .notice-wrap{margin-bottom:12px}
@@ -192,6 +211,17 @@ body{background:#fff;color:#1a2a28;font-family:-apple-system,'PingFang TC','Micr
 </div>
 
 <div class="bank-filters" id="bankFilters"></div>
+<div id="queueBar" style="display:none">
+  <div class="qb-wrap">
+    <div class="qb-header">
+      <span class="qb-title">批次工單</span>
+      <span class="qb-badge" id="qbBadge">0 張</span>
+      <button class="qb-clear" onclick="clearQueue()">清除全部</button>
+    </div>
+    <div id="qbItems"></div>
+    <button class="copy-all-main" id="copyAllMainBtn" onclick="copyAllMain()">複製全部工單</button>
+  </div>
+</div>
 <div class="result-bar" id="resultBar"></div>
 <div id="resultList"></div>
 
@@ -295,6 +325,9 @@ function getBatchLines() {
 
 function doSearch() { render(); searchInput.focus(); }
 
+function renderCards() {
+  return render();
+}
 function render() {
   const isBatch = batchInput.value.trim().length > 0;
   const rawLines = isBatch ? getBatchLines() : (singleQuery ? [singleQuery.toLowerCase()] : []);
@@ -345,7 +378,8 @@ function render() {
     if (m.co) tags.push('<span class="ctag co">零錢機</span>');
     if (m.cf) tags.push('<span class="ctag cf">家樂福</span>');
     if (m.pb) tags.push('<span class="ctag pb">補摺</span>');
-    return '<div class="card" onclick="showDetail(' + i + ')">' +
+    const inQueue = _ticketQueue.some(q => q.serial === m.s);
+    return '<div class="card' + (inQueue ? ' selected' : '') + '" onclick="showDetail(' + i + ')">' +
       '<div class="card-top">' +
         '<span class="bpill">' + m.b + '</span>' +
         '<span class="cid">' + m.id + '</span>' +
@@ -546,26 +580,59 @@ let _selectedType = null;
 let _ticketQueue = [];
 let _currentMachine = null;
 
+function renderMainQueue() {
+  const bar = document.getElementById('queueBar');
+  const items = document.getElementById('qbItems');
+  const badge = document.getElementById('qbBadge');
+  const btn = document.getElementById('copyAllMainBtn');
+  if (!_ticketQueue.length) { bar.style.display = 'none'; return; }
+  bar.style.display = 'block';
+  badge.textContent = _ticketQueue.length + ' 張';
+  btn.textContent = '複製全部 ' + _ticketQueue.length + ' 張工單';
+  btn.className = 'copy-all-main';
+  items.innerHTML = _ticketQueue.map((q,i) =>
+    '<div class="qi">' +
+      '<span class="qi-type">' + q.type + '</span>' +
+      '<span class="qi-serial">' + q.serial + '</span>' +
+      '<span class="qi-work">' + q.work + '</span>' +
+      '<button class="qi-del" onclick="removeFromQueue(' + i + ')">×</button>' +
+    '</div>'
+  ).join('');
+  renderCards();
+}
+
+function clearQueue() {
+  _ticketQueue = [];
+  renderMainQueue();
+  renderCards();
+}
+
+function removeFromQueue(i) {
+  _ticketQueue.splice(i, 1);
+  renderMainQueue();
+}
+
+function copyAllMain() {
+  const text = _ticketQueue.map(q => q.text).join('\n\n---\n\n');
+  const btn = document.getElementById('copyAllMainBtn');
+  function onOk() { btn.textContent = '✓ 已複製全部 ' + _ticketQueue.length + ' 張！'; btn.className = 'copy-all-main copied'; setTimeout(() => { btn.textContent = '複製全部 ' + _ticketQueue.length + ' 張工單'; btn.className = 'copy-all-main'; }, 2500); }
+  function onFail() { btn.textContent = '✗ 複製失敗'; setTimeout(() => { btn.textContent = '複製全部 ' + _ticketQueue.length + ' 張工單'; btn.className = 'copy-all-main'; }, 2000); }
+  function fallback() { try { const ta=document.createElement('textarea'); ta.value=text; ta.style.cssText='position:fixed;top:0;left:0;opacity:0;font-size:16px;'; document.body.appendChild(ta); ta.focus(); ta.select(); const ok=document.execCommand('copy'); document.body.removeChild(ta); ok?onOk():onFail(); } catch(e){onFail();} }
+  if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(onOk).catch(fallback); } else { fallback(); }
+}
+
 function toggleTicketMode() {
   const sec = document.getElementById('ticketSection');
   const btn = document.querySelector('.ticket-btn');
   const isOpen = sec.style.display !== 'none';
   sec.style.display = isOpen ? 'none' : 'block';
   btn.textContent = isOpen ? '📋 開電子工單' : '✕ 關閉工單模式';
-  if (!isOpen) {
-    _selectedType = null;
-    _ticketQueue = [];
-    renderTypeGrid();
-    renderWorkArea();
-    renderQueue();
-    document.getElementById('ticketPreview').style.display = 'none';
-    document.getElementById('previewLabel').style.display = 'none';
-    document.getElementById('ticketActions').innerHTML = '';
-  }
+  if (!isOpen) { _selectedType = null; renderTypeGrid(); renderWorkArea(); renderInlineQueue(); }
 }
 
 function renderTypeGrid() {
   const grid = document.getElementById('typeGrid');
+  if (!grid) return;
   grid.innerHTML = TICKET_TYPES.map((t,i) =>
     '<button class="type-btn' + (_selectedType === i ? ' selected' : '') + '" onclick="selectType(' + i + ')">' +
       '<span class="tb-type">' + t.type + '</span>' +
@@ -582,23 +649,28 @@ function selectType(i) {
 
 function renderWorkArea() {
   const area = document.getElementById('workArea');
-  if (_selectedType === null) { area.innerHTML = ''; return; }
+  if (!area) return;
+  if (_selectedType === null) { area.innerHTML = ''; updatePreview(''); return; }
   const t = TICKET_TYPES[_selectedType];
   if (t.fixed) {
-    updatePreview(t.work);
     area.innerHTML = '';
+    updatePreview(t.work);
   } else {
-    const sugs = (t.suggestions || []).map(s =>
-      '<button class="work-sug" onclick="setSuggestion(\''+s+'\')">' + s + '</button>'
-    ).join('');
     area.innerHTML =
-      (sugs ? '<div class="work-suggestions">' + sugs + '</div>' : '') +
-      '<textarea class="work-input" id="workInput" rows="2" placeholder="輸入工作內容…" oninput="updatePreviewFromInput()">' +
-      (t.work || '') + '</textarea>';
-    const ta = document.getElementById('workInput');
-    if (ta && ta.value) updatePreview(ta.value);
+      (t.suggestions && t.suggestions.length ? '<div class="work-suggestions" id="sugBox"></div>' : '') +
+      '<textarea class="work-input" id="workInput" rows="2" placeholder="\u8f38\u5165\u5de5\u4f5c\u5167\u5bb9\u2026" oninput="updatePreviewFromInput()"></textarea>';
+    const sugBox = document.getElementById('sugBox');
+    if (sugBox && t.suggestions) {
+      t.suggestions.forEach(function(s) {
+        const btn = document.createElement('button');
+        btn.className = 'work-sug';
+        btn.textContent = s;
+        btn.onclick = function() { setSuggestion(s); };
+        sugBox.appendChild(btn);
+      });
+    }
+    updatePreview('');
   }
-  updatePreview(t.fixed ? t.work : (document.getElementById('workInput') ? document.getElementById('workInput').value : ''));
 }
 
 function setSuggestion(text) {
@@ -611,48 +683,52 @@ function updatePreviewFromInput() {
   if (ta) updatePreview(ta.value.trim());
 }
 
-function updatePreview(workText) {
-  if (!_currentMachine || _selectedType === null) return;
-  const m = _currentMachine;
+function getCurrentWork() {
+  if (_selectedType === null) return '';
   const t = TICKET_TYPES[_selectedType];
-  const work = workText || t.work || '';
+  if (t.fixed) return t.work;
+  const ta = document.getElementById('workInput');
+  return ta ? ta.value.trim() : '';
+}
+
+function getTicketText(m, type, work) {
+  const bankName = BANK_NAMES[m.b] || m.b;
+  return '麻煩協助建\n' + bankName + m.br + '\n' + m.s + '\n' + type + '\n' + work + '\nSteven Chou';
+}
+
+function updatePreview(workText) {
+  if (!_currentMachine || _selectedType === null) {
+    document.getElementById('ticketPreview').style.display = 'none';
+    document.getElementById('previewLabel').style.display = 'none';
+    document.getElementById('ticketActions').innerHTML = '';
+    return;
+  }
+  const t = TICKET_TYPES[_selectedType];
+  const work = workText !== undefined ? workText : getCurrentWork();
   if (!work) {
     document.getElementById('ticketPreview').style.display = 'none';
     document.getElementById('previewLabel').style.display = 'none';
-    renderActions(false);
+    document.getElementById('ticketActions').innerHTML = '';
     return;
   }
-  const bankName = BANK_NAMES[m.b] || m.b;
-  const text = '麻煩協助建\n' + bankName + m.br + '\n' + m.s + '\n' + t.type + '\n' + work + '\nSteven Chou';
+  const text = getTicketText(_currentMachine, t.type, work);
   const preview = document.getElementById('ticketPreview');
   preview.textContent = text;
   preview.style.display = 'block';
   document.getElementById('previewLabel').style.display = 'block';
-  renderActions(true, text);
-}
-
-function renderActions(show, text) {
-  const el = document.getElementById('ticketActions');
-  if (!show) { el.innerHTML = ''; return; }
-  el.innerHTML =
+  const alreadyIn = _ticketQueue.some(q => q.serial === _currentMachine.s && q.type === t.type);
+  document.getElementById('ticketActions').innerHTML =
     '<button class="copy-ticket-btn" id="copyTicketBtn" onclick="copyTicket()">複製此工單</button>' +
-    '<button class="add-ticket-btn" onclick="addToQueue()">＋ 加入批次（同分行多台）</button>';
-}
-
-function getCurrentTicketText() {
-  if (!_currentMachine || _selectedType === null) return '';
-  const m = _currentMachine;
-  const t = TICKET_TYPES[_selectedType];
-  const ta = document.getElementById('workInput');
-  const work = t.fixed ? t.work : (ta ? ta.value.trim() : '');
-  if (!work) return '';
-  const bankName = BANK_NAMES[m.b] || m.b;
-  return '麻煩協助建\n' + bankName + m.br + '\n' + m.s + '\n' + t.type + '\n' + work + '\nSteven Chou';
+    (alreadyIn ? '<div style="text-align:center;font-size:13px;color:var(--teal);padding:8px 0">✓ 已在批次清單中</div>' :
+    '<button class="add-ticket-btn" onclick="addToQueue()">＋ 加入批次清單</button>');
 }
 
 function copyTicket() {
-  const text = getCurrentTicketText();
-  if (!text) return;
+  if (!_currentMachine || _selectedType === null) return;
+  const work = getCurrentWork();
+  if (!work) return;
+  const t = TICKET_TYPES[_selectedType];
+  const text = getTicketText(_currentMachine, t.type, work);
   const btn = document.getElementById('copyTicketBtn');
   function onOk() { btn.textContent = '✓ 已複製！'; btn.className = 'copy-ticket-btn copied'; setTimeout(() => { btn.textContent = '複製此工單'; btn.className = 'copy-ticket-btn'; }, 2000); }
   function onFail() { btn.textContent = '✗ 複製失敗'; setTimeout(() => { btn.textContent = '複製此工單'; btn.className = 'copy-ticket-btn'; }, 2000); }
@@ -661,42 +737,20 @@ function copyTicket() {
 }
 
 function addToQueue() {
-  const text = getCurrentTicketText();
-  if (!text || !_currentMachine) return;
+  if (!_currentMachine || _selectedType === null) return;
+  const work = getCurrentWork();
+  if (!work) return;
   const t = TICKET_TYPES[_selectedType];
-  const ta = document.getElementById('workInput');
-  const work = t.fixed ? t.work : (ta ? ta.value.trim() : '');
+  const text = getTicketText(_currentMachine, t.type, work);
   _ticketQueue.push({ text, type: t.type, work, serial: _currentMachine.s });
-  renderQueue();
+  renderMainQueue();
+  updatePreview(work);
 }
 
-function removeFromQueue(i) {
-  _ticketQueue.splice(i, 1);
-  renderQueue();
-}
-
-function renderQueue() {
+function renderInlineQueue() {
   const el = document.getElementById('ticketQueue');
-  if (!_ticketQueue.length) { el.innerHTML = ''; return; }
-  el.innerHTML =
-    '<div class="ticket-sec-label">批次工單（' + _ticketQueue.length + ' 張）</div>' +
-    _ticketQueue.map((q,i) =>
-      '<div class="tq-item">' +
-        '<span class="tq-type">' + q.type + '</span>' +
-        '<span class="tq-text">' + q.serial + '　' + q.work + '</span>' +
-        '<button class="tq-del" onclick="removeFromQueue(' + i + ')">×</button>' +
-      '</div>'
-    ).join('') +
-    '<button class="copy-all-btn" id="copyAllBtn" onclick="copyAll()">📋 複製全部 ' + _ticketQueue.length + ' 張工單</button>';
-}
-
-function copyAll() {
-  const text = _ticketQueue.map(q => q.text).join('\n\n---\n\n');
-  const btn = document.getElementById('copyAllBtn');
-  function onOk() { btn.textContent = '✓ 已複製全部！'; btn.className = 'copy-all-btn copied'; setTimeout(() => { btn.textContent = '📋 複製全部 ' + _ticketQueue.length + ' 張工單'; btn.className = 'copy-all-btn'; }, 2500); }
-  function onFail() { btn.textContent = '✗ 複製失敗'; setTimeout(() => { btn.textContent = '📋 複製全部 ' + _ticketQueue.length + ' 張工單'; btn.className = 'copy-all-btn'; }, 2000); }
-  function fallback() { try { const ta=document.createElement('textarea'); ta.value=text; ta.style.cssText='position:fixed;top:0;left:0;opacity:0;font-size:16px;'; document.body.appendChild(ta); ta.focus(); ta.select(); const ok=document.execCommand('copy'); document.body.removeChild(ta); ok?onOk():onFail(); } catch(e){onFail();} }
-  if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(onOk).catch(fallback); } else { fallback(); }
+  if (!el) return;
+  el.innerHTML = '';
 }
 
 render();
